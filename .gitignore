@@ -39,6 +39,7 @@ server/
 *.pyc
 /*.zip
 *.db
+*.bak/
 python-*-docs-html
 /.cask/
 /session.*
