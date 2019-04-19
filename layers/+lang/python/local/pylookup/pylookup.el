@@ -1,6 +1,6 @@
 ;;; pylookup.el --- Look up python documents (reference) in Emacs
 
-;; Copyright (C) 2010-2013 Taesoo Kim
+;; Copyright (C) 2010-2018 Taesoo Kim
 
 ;; Author: Taesoo Kim <taesoo@mit.edu>
 ;; Maintainer: Taesoo Kim <taesoo@mit.edu>
@@ -18,7 +18,7 @@
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
-;;
+;; 
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -34,8 +34,18 @@
 ;; user options
 ;;=================================================================
 
-(defvar pylookup-db-file "pylookup.db" "Pylookup database file")
-(defvar pylookup-program "pylookup.py" "Pylookup execution file")
+(defvar pylookup-root (file-name-directory load-file-name))
+(defvar pylookup-db2-file
+  (concat pylookup-root "/pylookup2.db")
+  "Pylookup database file for python2")
+(defvar pylookup-db3-file
+  (concat pylookup-root "/pylookup3.db")
+  "Pylookup database file for python3")
+(defvar pylookup-program
+  (concat pylookup-root "/pylookup.py")
+  "Pylookup execution file")
+(defvar pylookup-db-file pylookup-db3-file
+  "Default database to use, if not matched")
 (defvar pylookup-search-options nil
   "Pylookup search options (see ./pylookup.py -h)")
 
@@ -43,7 +53,6 @@
 ;; internal variables
 ;;=================================================================
 
-(defvar pylookup-html-locations '("http://docs.python.org"))
 (defvar pylookup-history nil)
 (defvar pylookup-cache nil)
 (defvar pylookup-return-window-config nil)
@@ -69,13 +78,13 @@
     (define-key map "<"        'beginning-of-buffer)
     (define-key map ">"        'end-of-buffer)
     (define-key map "v"        'scroll-down)
-
+    
     map)
   "Keymap for `pylookup-mode-mode'.")
 
 (put 'pylookup-mode 'mode-class 'special)
 
-(defvar pylookup-completing-read
+(defvar pylookup-completing-read 
   (if (null ido-mode) 'completing-read 'ido-completing-read)
   "Ido support with convenience")
 
@@ -93,7 +102,7 @@
 (defun pylookup-mode ()
   "Major mode for output from \\[pylookup-lookup]."
   (interactive)
-
+  
   (kill-all-local-variables)
   (use-local-map pylookup-mode-map)
   (setq major-mode 'pylookup-mode)
@@ -104,14 +113,14 @@
 (defun pylookup-move-prev-line ()
   "Move to previous entry"
   (interactive)
-
+  
   (when (< 3 (line-number-at-pos))
     (call-interactively 'previous-line)))
 
 (defun pylookup-mode-next-line ()
   "Move to next entry"
   (interactive)
-
+  
   (when (< (line-number-at-pos)
            (- (line-number-at-pos (point-max)) 1))
     (call-interactively 'next-line)))
@@ -119,14 +128,14 @@
 (defun pylookup-mode-lookup-and-leave ()
   "Lookup the current line in a browser and leave the completions window."
   (interactive)
-
+  
   (call-interactively 'pylookup-mode-lookup)
   (pylookup-mode-quit-window))
 
 (defun pylookup-mode-lookup ()
   "Lookup the current line in a browser."
   (interactive)
-
+  
   (let ((url (get-text-property (point) 'pylookup-target-url)))
     (if url
         (progn
@@ -145,14 +154,28 @@
 ;; execute pylookup
 ;;=================================================================
 
+(defun check-shabang (str)
+  (save-excursion
+    (goto-char (point-min))
+    (not (eq (search-forward str (min 50 (point-max)) t) nil))))
+
+(defun get-pylookup-db-file ()
+  (expand-file-name
+   (if (check-shabang "python2") pylookup-db2-file
+     (if (check-shabang "python3")
+         pylookup-db3-file
+       pylookup-db-file))))
+      
 (defun pylookup-exec-get-cache ()
   "Run a pylookup process and get a list of cache (db key)"
 
   (split-string
    (with-output-to-string
-     (call-process pylookup-program nil standard-output nil
-           "-d" (expand-file-name pylookup-db-file)
+     (call-process pylookup-program nil standard-output nil 
+           "-d" (get-pylookup-db-file)
            "-c"))))
+
+(setq testme (file-name-directory load-file-name))
 
 (defun pylookup-exec-lookup (search-term)
   "Runs a pylookup process and returns a list of (term, url) pairs."
@@ -162,7 +185,7 @@
    (split-string
      (with-output-to-string
          (apply 'call-process pylookup-program nil standard-output nil
-                "-d" (expand-file-name pylookup-db-file)
+                "-d" (get-pylookup-db-file)
                 "-l" search-term
                 "-f" "Emacs"
                 pylookup-search-options))
@@ -176,12 +199,12 @@
 (defun pylookup-lookup (search-term)
   "Lookup SEARCH-TERM in the Python HTML indexes."
   (interactive
-   (list
+   (list 
     (let ((initial (thing-at-point 'word)))
       (funcall pylookup-completing-read
                "Search: "
-               (if pylookup-cache
-                   pylookup-cache
+               (if pylookup-cache 
+                   pylookup-cache 
                  (setq pylookup-cache (pylookup-exec-get-cache)))
                nil nil initial 'pylookup-history))
     ))
@@ -194,7 +217,7 @@
        (message "No matches for \"%s\"." search-term))
 
       ;; 1. A single result.
-      ((= (length matches) 1)
+      ((= (length matches) 1)  
        ;; Point the browser at the unique result and get rid of the buffer
        (let ((data (car matches)))
          (message "Browsing: \"%s\"" (car data))
@@ -207,7 +230,7 @@
        (let* ((cur-window-conf (current-window-configuration))
               (tmpbuf (get-buffer-create pylookup-temp-buffer-name))
               (index 0))
-
+    
          (display-buffer tmpbuf)
          (pop-to-buffer tmpbuf)
 
@@ -236,8 +259,8 @@
                 (setq iter (cdr iter)))
 
               (incf index)
-              (insert (format " %03d) %-25s %-30s %10s"
-                  index
+              (insert (format " %03d) %-25s %-30s %10s" 
+                  index 
                   (pylookup-trim api 25)
                   (pylookup-trim module 30)
                   (pylookup-trim type 10))))
@@ -254,8 +277,8 @@
          (pylookup-mode)
 
          ;; highlighting
-         (font-lock-add-keywords nil `((,(format "\\(%s\\|%s\\|%s\\)"
-                         search-term
+         (font-lock-add-keywords nil `((,(format "\\(%s\\|%s\\|%s\\)" 
+                         search-term 
                          (upcase search-term)
                          (upcase-initials search-term))
                                          1
@@ -282,31 +305,6 @@
    (list (read-string "Search option: "
                       (mapconcat 'identity pylookup-search-options " "))))
   (setq pylookup-search-options (split-string option-string " ")))
-
-;;;###autoload
-(defun pylookup-update (src &optional append)
-  "Run pylookup-update and create the database at `pylookup-db-file'."
-  (interactive
-   (list (funcall pylookup-completing-read
-                  "Python Html Documentation source: "
-                  pylookup-html-locations)))
-
-  ;; pylookup.py -d /home/myuser/.pylookup/pylookup.db -l <URL>
-  (message (with-output-to-string
-             (call-process pylookup-program nil standard-output nil
-                  "-u" src
-                  "-d" (expand-file-name pylookup-db-file)
-                  (if append
-                      "-a"
-                    "")))))
-
-;;;###autoload
-(defun pylookup-update-all ()
-  "Run pylookup-update for all sources and create the database at `pylookup-db-file'."
-  (interactive)
-  ;; truncate db file
-  (with-temp-buffer (write-file pylookup-db-file))
-  (mapc (lambda (s) (pylookup-update s t)) pylookup-html-locations))
 
 ;;;###autoload
 (defun pylookup-lookup-at-point ()

@@ -1,19 +1,23 @@
-VER := $(shell python --version 2>&1 | grep -o "[0-9].[0-9].[0-9]*")
-MAJOR_VERSION = $(shell python --version 2>&1 | grep -o "Python [0-9]" | grep -o "[0-9]")
-ZIP := python-${VER}-docs-html.zip
-URL := https://docs.python.org/2/archives/${ZIP}
-URL2:= https://docs.python.org/3/archives/${ZIP}
+VER2 := $(shell python2 --version 2>&1 | grep -o "[0-9].[0-9].[0-9]*")
+VER3 := $(shell python3 --version 2>&1 | grep -o "[0-9].[0-9].[0-9]*")
+ZIP2 := python-$(VER2)-docs-html.zip
+ZIP3 := python-$(VER3)-docs-html.zip
+URL2 := https://docs.python.org/2/archives/$(ZIP2)
+URL3 := https://docs.python.org/3/archives/$(ZIP3)
 
-ifneq (2,${MAJOR_VERSION})
-	URL := ${URL2}
-endif
-
-download:
-	@if [ ! -e ${ZIP} ] ; then     \
-		echo "Downloading ${URL}"; \
-		wget ${URL};               \
-		unzip ${ZIP};              \
+define download
+	@if [ ! -e $(1) ] ; then     \
+		echo "Downloading $(2)"; \
+		wget $(2);               \
+		unzip $(1);              \
 	fi
-	./pylookup.py -u $(ZIP:.zip=)
+endef
+
+build:
+	$(call download,$(ZIP2),$(URL2))
+	$(call download,$(ZIP3),$(URL3))
+
+	./pylookup.py -d pylookup2.db -u $(ZIP2:.zip=)
+	./pylookup.py -d pylookup3.db -u $(ZIP3:.zip=)
 
 .PHONY: download
