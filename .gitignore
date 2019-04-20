@@ -47,6 +47,9 @@ python-*-docs-html
 /recentf
 .mc-lists.el
 
+# temporary
+transient/
+
 # Private directory
 private/
 !private/README.md
