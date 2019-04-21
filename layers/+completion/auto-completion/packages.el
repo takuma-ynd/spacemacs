@@ -22,6 +22,7 @@
         hippie-exp
         yasnippet
         auto-yasnippet
+        yasnippet-snippets
         smartparens
         ))
 
@@ -255,3 +256,10 @@
               #'spacemacs//smartparens-disable-before-expand-snippet)
     (add-hook 'yas-after-exit-snippet-hook
               #'spacemacs//smartparens-restore-after-exit-snippet)))
+
+
+(defun auto-completion/init-yasnippet-snippets ()
+  (use-package yasnippet-snippets
+    :defer t
+    :init)
+)
